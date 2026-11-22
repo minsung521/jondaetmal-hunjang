@@ -78,3 +78,22 @@ export const VIEW = {
   fov: 30,
   maxPixelRatio: 2,
 };
+
+export const LANDMARKS_VIEW = {
+  /** Camera framing in ?landmarks mode (fractions of model height), so face + collar fit. */
+  frameHeight: 0.45,
+  frameDistance: 2.2,
+  /** Marker sphere radius as a fraction of model height. */
+  markerRadius: 0.006,
+  colors: { left: 0x2f80ed, right: 0xeb5757, center: 0x27ae60, active: 0xffc107, ghost: 0xffffff },
+  /** A pointer press that moves less than this (px) counts as a click, not an orbit drag. */
+  clickTolerancePx: 5,
+  /** Camera azimuth for the side-view buttons, in degrees (0 = front). */
+  sideViewAngle: 80,
+  /** Labels of markers hidden behind the model fade to this opacity. */
+  hiddenLabelOpacity: 0.15,
+  /** Wait this long after the camera stops before re-checking which markers are hidden. */
+  occlusionDelayMs: 120,
+  /** localStorage key prefix for unfinished picking sessions (per model). */
+  draftKey: 'hunjang.landmarks.draft.',
+};

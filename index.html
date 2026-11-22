@@ -9,6 +9,25 @@
       #app { position: fixed; inset: 0; }
       #hud { position: fixed; left: 12px; bottom: 12px; padding: 8px 10px; background: rgba(0,0,0,.55); color: #fff; font-size: 12px; border-radius: 6px; line-height: 1.5; }
       #hud a { color: #ffd479; }
+      .landmark-label { font-size: 10px; color: #fff; background: rgba(0,0,0,.6); padding: 1px 4px; border-radius: 3px; white-space: nowrap; }
+      .lm-panel { position: fixed; top: 12px; left: 12px; width: 290px; max-height: calc(100vh - 110px); overflow: auto; padding: 10px 12px; background: rgba(20,20,20,.85); color: #fff; font-size: 12px; border-radius: 8px; line-height: 1.45; z-index: 5; }
+      .lm-title { font-weight: 700; margin-bottom: 2px; }
+      .lm-source { color: #aaa; margin-bottom: 8px; }
+      .lm-step { font-size: 15px; font-weight: 700; color: #ffc107; }
+      .lm-hint { margin: 4px 0 6px; }
+      .lm-warn { color: #ff8a80; }
+      .lm-warn:empty { display: none; }
+      .lm-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; align-items: center; }
+      .lm-buttons button { font: inherit; padding: 4px 8px; border: 0; border-radius: 4px; background: #444; color: #fff; cursor: pointer; }
+      .lm-buttons button:hover { background: #666; }
+      .lm-toggle { margin-left: 4px; cursor: pointer; }
+      .lm-list { margin: 6px 0; padding-left: 22px; columns: 2; column-gap: 12px; }
+      .lm-list li { cursor: pointer; color: #bbb; }
+      .lm-list li.done { color: #fff; }
+      .lm-list li.active { color: #ffc107; font-weight: 700; }
+      .lm-output-title { margin-top: 8px; font-weight: 700; color: #9be29b; }
+      .lm-output textarea { width: 100%; box-sizing: border-box; margin-top: 4px; font: 11px ui-monospace, monospace; background: #111; color: #eee; border: 1px solid #555; border-radius: 4px; }
+      @media (max-width: 600px) { .lm-panel { width: auto; right: 12px; max-height: 45vh; } }
     </style>
   </head>
   <body>

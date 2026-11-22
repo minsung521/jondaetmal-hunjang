@@ -2,6 +2,8 @@
 import GUI from 'lil-gui';
 import Stats from 'three/addons/libs/stats.module.js';
 import { ExpressionEngine } from './ExpressionEngine';
+import type { LandmarkMarkers } from './LandmarkMarkers';
+import type { LandmarkFile } from './landmarks';
 
 /** The 10 expressions stage D will generate for the hunjang models (combined/ARKit names). */
 const CORE_EXPRESSIONS = [
@@ -22,12 +24,27 @@ export interface DebugPanel {
   tick(): void;
 }
 
-export function createDebugPanel(engine: ExpressionEngine): DebugPanel {
+export interface DebugExtras {
+  /** Saved-landmark markers to toggle (null when the picking tool owns them). */
+  markers?: LandmarkMarkers | null;
+  landmarks?: LandmarkFile | null;
+}
+
+export function createDebugPanel(engine: ExpressionEngine, extras: DebugExtras = {}): DebugPanel {
   const stats = new Stats();
   stats.dom.style.cssText = 'position:fixed;top:0;left:0;z-index:10;cursor:pointer';
   document.body.appendChild(stats.dom);
 
   const gui = new GUI({ title: '디버그' });
+
+  if (extras.markers && extras.landmarks) {
+    const lmFolder = gui.addFolder('기준점');
+    const markers = extras.markers;
+    const view = { shown: true, labels: true, eyeDist: extras.landmarks.eyeDist.toFixed(4) };
+    lmFolder.add(view, 'shown').name('표시').onChange((v: boolean) => markers.setShown(v));
+    lmFolder.add(view, 'labels').name('이름 표시').onChange((v: boolean) => markers.setLabelsVisible(v));
+    lmFolder.add(view, 'eyeDist').name('eyeDist').disable();
+  }
 
   const engineFolder = gui.addFolder('표정 엔진');
   engineFolder.add(engine.options, 'omega', 2, 40, 0.5).name('스프링 ω');

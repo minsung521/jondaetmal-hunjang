@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { LIGHTS, VIEW } from './config';
 
 export interface Stage {
@@ -9,6 +10,11 @@ export interface Stage {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
+  /** Draws CSS2DObject labels (landmark names) over the canvas. */
+  labelRenderer: CSS2DRenderer;
+  render(): void;
+  /** Orbits the camera to an azimuth around the target (degrees, 0 = front, + = viewer's right). */
+  setAzimuth(deg: number): void;
   /** Points the camera at a model: target at frameHeight of its height, distance in heights. */
   frame(root: THREE.Object3D, frameHeight: number, frameDistance: number): void;
 }
@@ -38,11 +44,35 @@ export function createStage(container: HTMLElement): Stage {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
 
+  const labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(window.innerWidth, window.innerHeight);
+  labelRenderer.domElement.style.cssText = 'position:fixed;inset:0;pointer-events:none';
+  container.appendChild(labelRenderer.domElement);
+
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    labelRenderer.setSize(window.innerWidth, window.innerHeight);
   });
+
+  function render() {
+    controls.update();
+    renderer.render(scene, camera);
+    labelRenderer.render(scene, camera);
+  }
+
+  function setAzimuth(deg: number) {
+    const offset = camera.position.clone().sub(controls.target);
+    const horizontal = Math.hypot(offset.x, offset.z);
+    const a = THREE.MathUtils.degToRad(deg);
+    camera.position.set(
+      controls.target.x + Math.sin(a) * horizontal,
+      camera.position.y,
+      controls.target.z + Math.cos(a) * horizontal,
+    );
+    controls.update();
+  }
 
   function frame(root: THREE.Object3D, frameHeight: number, frameDistance: number) {
     const box = new THREE.Box3().setFromObject(root);
@@ -57,5 +87,5 @@ export function createStage(container: HTMLElement): Stage {
     controls.update();
   }
 
-  return { renderer, scene, camera, controls, frame };
+  return { renderer, scene, camera, controls, labelRenderer, render, setAzimuth, frame };
 }
