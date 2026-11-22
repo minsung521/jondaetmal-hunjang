@@ -44,8 +44,20 @@ export const DECODERS = {
 };
 
 export const ENGINE = {
-  /** Natural frequency of the critically damped spring (rad/s). Higher = snappier. */
+  /** Natural frequency of the spring (rad/s). Higher = snappier. */
   springOmega: 14,
+  /**
+   * Damping ratio ζ. 1 = critically damped (no overshoot). Below 1 the weight passes the
+   * goal slightly and swings back (0.5 ≈ 16% overshoot). Above 1 approaches more slowly.
+   * Individual channels can override it via setTarget(name, value, { dampingRatio }).
+   */
+  dampingRatio: 1,
+  /**
+   * Range written to morphTargetInfluences. Max slightly above 1 so overshoot toward a full
+   * expression stays visible; min 0 so a spring swinging past neutral never inverts a morph.
+   */
+  outputMin: 0,
+  outputMax: 1.1,
   /** Largest frame time fed to the spring, in seconds (avoids jumps after tab switches). */
   maxDt: 0.1,
   /**

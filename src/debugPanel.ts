@@ -31,6 +31,7 @@ export function createDebugPanel(engine: ExpressionEngine): DebugPanel {
 
   const engineFolder = gui.addFolder('표정 엔진');
   engineFolder.add(engine.options, 'omega', 2, 40, 0.5).name('스프링 ω');
+  engineFolder.add(engine.options, 'dampingRatio', 0.1, 2, 0.01).name('감쇠비 ζ (1=임계)');
 
   const morphState: Record<string, number> = {};
   const morphControllers: ReturnType<GUI['add']>[] = [];
@@ -74,6 +75,25 @@ export function createDebugPanel(engine: ExpressionEngine): DebugPanel {
       );
     }
   }
+
+  // Per-channel spring override through setTarget(name, value, { dampingRatio }).
+  const springFolder = gui.addFolder('채널별 감쇠비');
+  springFolder.close();
+  const perChannel = { name: core[0] ?? engine.arkitNames[0], ratio: engine.options.dampingRatio };
+  const picker = springFolder
+    .add(perChannel, 'name', [...new Set([...core, ...engine.arkitNames])])
+    .name('모프');
+  const ratioCtrl = springFolder
+    .add(perChannel, 'ratio', 0.1, 2, 0.01)
+    .name('감쇠비 ζ')
+    .onChange((v: number) =>
+      engine.setTarget(perChannel.name, engine.getTarget(perChannel.name), { dampingRatio: v }),
+    );
+  picker.onChange((n: string) => {
+    perChannel.ratio = engine.getSpring(n).dampingRatio ?? engine.options.dampingRatio;
+    ratioCtrl.updateDisplay();
+  });
+  springFolder.add({ clear: () => engine.clearSpringOverrides() }, 'clear').name('채널별 설정 모두 해제');
 
   const allFolder = gui.addFolder(`모든 모프 (${engine.channels.length})`);
   allFolder.close();

@@ -44,6 +44,9 @@ loadModel(model.url, stage.renderer)
 
     engine = new ExpressionEngine(loaded.morphMeshes, {
       omega: ENGINE.springOmega,
+      dampingRatio: ENGINE.dampingRatio,
+      outputMin: ENGINE.outputMin,
+      outputMax: ENGINE.outputMax,
       maxDt: ENGINE.maxDt,
       aliases: ENGINE.aliases,
     });
