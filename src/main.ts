@@ -3,7 +3,7 @@
 //   ?debug                                    lil-gui panel + FPS meter (+ saved landmarks)
 //   ?landmarks                                landmark picking tool
 import * as THREE from 'three';
-import { DEFAULT_MODEL, ENGINE, LANDMARKS_VIEW, MODELS } from './config';
+import { DEFAULT_MODEL, ENGINE, FACE_PARTS, GAZE, LANDMARKS_VIEW, MODELS, type FacePartsParams } from './config';
 import { createStage } from './stage';
 import { loadModel } from './loadModel';
 import { ExpressionEngine } from './ExpressionEngine';
@@ -11,6 +11,9 @@ import { createDebugPanel, type DebugPanel } from './debugPanel';
 import { LandmarkMarkers } from './LandmarkMarkers';
 import { createLandmarkTool } from './landmarkTool';
 import { savedLandmarks } from './landmarks';
+import { FaceParts } from './face/FaceParts';
+import { deepMerge, modelData } from './modelData';
+import { addFacePartsFolder, type GazeControl } from './debugFaceParts';
 
 const params = new URLSearchParams(location.search);
 const modelKey = params.get('model') && MODELS[params.get('model')!] ? params.get('model')! : DEFAULT_MODEL;
@@ -43,6 +46,17 @@ hud.innerHTML = `모델: ${modelLinks}<br>불러오는 중…`;
 
 let engine: ExpressionEngine | null = null;
 let panel: DebugPanel | null = null;
+let parts: FaceParts | null = null;
+
+// Gaze: follow the pointer unless the debug panel switches to manual sliders.
+const gaze: GazeControl = { followPointer: GAZE.followPointer, x: 0, y: 0 };
+const pointer = { x: 0, y: 0, inside: false };
+window.addEventListener('pointermove', (ev) => {
+  pointer.x = (ev.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(ev.clientY / window.innerHeight) * 2 + 1;
+  pointer.inside = true;
+});
+document.documentElement.addEventListener('pointerleave', () => (pointer.inside = false));
 
 loadModel(model.url, stage.renderer)
   .then((loaded) => {
@@ -76,7 +90,17 @@ loadModel(model.url, stage.renderer)
       }
     }
 
-    if (debug) panel = createDebugPanel(engine, { markers: landmarkMode ? null : markers, landmarks: saved });
+    // Eyeballs, mouth interior and lip gap need landmarks. Skipped while picking landmarks,
+    // so the painted eyes and the closed lips stay clickable.
+    if (saved && !landmarkMode) {
+      const params = deepMerge<FacePartsParams>(FACE_PARTS, model.faceParts, modelData('faceParts', modelKey));
+      parts = new FaceParts(loaded.root, loaded.meshes, saved, params);
+    }
+
+    if (debug) {
+      panel = createDebugPanel(engine, { markers: landmarkMode ? null : markers, landmarks: saved });
+      if (parts) addFacePartsFolder(panel.gui, parts, modelKey, gaze);
+    }
 
     hud.innerHTML =
       `모델: ${modelLinks}<br>` +
@@ -92,7 +116,15 @@ loadModel(model.url, stage.renderer)
 const timer = new THREE.Timer();
 stage.renderer.setAnimationLoop((time) => {
   timer.update(time);
-  engine?.update(timer.getDelta());
+  const dt = timer.getDelta();
+  engine?.update(dt);
+  if (parts) {
+    if (gaze.followPointer) {
+      if (pointer.inside) parts.lookAtScreen(pointer.x, pointer.y, stage.camera, GAZE.pointerRange);
+      else parts.lookAt(0, 0);
+    }
+    parts.update(dt);
+  }
   stage.render();
   panel?.tick();
 });

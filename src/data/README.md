@@ -5,6 +5,7 @@
 | 파일 | 만드는 곳 |
 | --- | --- |
 | `landmarks.<모델키>.json` | `?landmarks` 기준점 찍기 도구 |
+| `faceParts.<모델키>.json` | 단계 C `?debug` → 얼굴 부품 → 조정값 JSON 보기 |
 | `morphConfig.<모델키>.json` | 단계 D `?debug` 모프 조정 패널 |
 
 좌표는 모델 루트 공간(+Y 위, +Z 정면, 바닥 y=0, 캐릭터 왼쪽 `_L` = +X)이고,

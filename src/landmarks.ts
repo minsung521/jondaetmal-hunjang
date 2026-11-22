@@ -4,6 +4,8 @@
 // y = 0 at the bottom. Left/right are the character's own, so *_L sits at +X
 // (on the viewer's right when looking at the face from the front).
 
+import { modelData } from './modelData';
+
 export const LANDMARK_NAMES = [
   'browInner_L',
   'browInner_R',
@@ -65,11 +67,9 @@ export function sideOf(name: LandmarkName): 'L' | 'R' | null {
   return name.endsWith('_L') ? 'L' : name.endsWith('_R') ? 'R' : null;
 }
 
-// Saved files: src/data/landmarks.<modelKey>.json (missing files are fine).
-const saved = import.meta.glob<LandmarkFile>('./data/landmarks.*.json', { eager: true, import: 'default' });
-
+/** Saved file src/data/landmarks.<modelKey>.json, or null. */
 export function savedLandmarks(modelKey: string): LandmarkFile | null {
-  return saved[`./data/landmarks.${modelKey}.json`] ?? null;
+  return modelData<LandmarkFile>('landmarks', modelKey);
 }
 
 export function isComplete(points: LandmarkPoints): points is Record<LandmarkName, Vec3> {

@@ -20,6 +20,7 @@ const CORE_EXPRESSIONS = [
 ];
 
 export interface DebugPanel {
+  gui: GUI;
   /** Call once per frame (FPS meter). */
   tick(): void;
 }
@@ -39,8 +40,11 @@ export function createDebugPanel(engine: ExpressionEngine, extras: DebugExtras =
 
   if (extras.markers && extras.landmarks) {
     const lmFolder = gui.addFolder('기준점');
+    lmFolder.close();
     const markers = extras.markers;
-    const view = { shown: true, labels: true, eyeDist: extras.landmarks.eyeDist.toFixed(4) };
+    // Hidden by default since stage C: the eyeballs cover the eye markers anyway.
+    const view = { shown: false, labels: true, eyeDist: extras.landmarks.eyeDist.toFixed(4) };
+    markers.setShown(false);
     lmFolder.add(view, 'shown').name('표시').onChange((v: boolean) => markers.setShown(v));
     lmFolder.add(view, 'labels').name('이름 표시').onChange((v: boolean) => markers.setLabelsVisible(v));
     lmFolder.add(view, 'eyeDist').name('eyeDist').disable();
@@ -76,7 +80,7 @@ export function createDebugPanel(engine: ExpressionEngine, extras: DebugExtras =
 
   if (engine.channels.length === 0) {
     gui.addFolder('모프').add({ note: '이 모델엔 모프가 아직 없어요' }, 'note').name('안내').disable();
-    return { tick: () => stats.update() };
+    return { gui, tick: () => stats.update() };
   }
 
   // Combined names exercise the alias layer (e.g. browDown → browDown_L + browDown_R on facecap).
@@ -135,5 +139,5 @@ export function createDebugPanel(engine: ExpressionEngine, extras: DebugExtras =
     baseValue.updateDisplay();
   });
 
-  return { tick: () => stats.update() };
+  return { gui, tick: () => stats.update() };
 }
