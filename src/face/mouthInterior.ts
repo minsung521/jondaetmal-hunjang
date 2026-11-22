@@ -8,24 +8,13 @@
 import * as THREE from 'three';
 import type { FacePartsParams } from '../config';
 import type { LandmarkFile } from '../landmarks';
+import { lipLine } from './lipLine';
+
+export { lipLine };
 
 const SEG_X = 48; // along the lip line
 const SEG_R = 32; // around the cross-section
 const END_SHAPE = 4; // higher = blunter ends
-
-/** Lip line point at u ∈ [-1, 1] (−1 = right corner, 0 = lip midpoint, +1 = left corner). */
-export function lipLine(landmarks: LandmarkFile, u: number): [number, number, number] {
-  const P = landmarks.points;
-  const mid = [
-    (P.upperLip[0] + P.lowerLip[0]) / 2,
-    (P.upperLip[1] + P.lowerLip[1]) / 2,
-    (P.upperLip[2] + P.lowerLip[2]) / 2,
-  ];
-  const c = u >= 0 ? P.mouthCorner_L : P.mouthCorner_R;
-  const a = Math.abs(u);
-  const u2 = u * u;
-  return [mid[0] + (c[0] - mid[0]) * a, mid[1] + (c[1] - mid[1]) * u2, mid[2] + (c[2] - mid[2]) * u2];
-}
 
 /** Geometry in model-root space. */
 export function buildMouthGeometry(landmarks: LandmarkFile, p: FacePartsParams['mouth']): THREE.BufferGeometry {

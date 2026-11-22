@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import type { FacePartsParams } from '../config';
 import type { LandmarkFile } from '../landmarks';
+import { lipLineAtX } from './lipLine';
 
 interface MeshCut {
   mesh: THREE.Mesh;
@@ -15,6 +16,8 @@ interface MeshCut {
   /** Per-triangle centroid (x, y, z) and normal z, in root space. */
   centroids: Float32Array;
   normalZ: Float32Array;
+  /** 1 if the triangle's vertices lie on both sides of the lip line. */
+  straddles: Uint8Array;
 }
 
 export class LipGap {
@@ -42,6 +45,7 @@ export class LipGap {
       const triCount = index.count / 3;
       const centroids = new Float32Array(triCount * 3);
       const normalZ = new Float32Array(triCount);
+      const straddles = new Uint8Array(triCount);
       for (let t = 0; t < triCount; t++) {
         a.fromBufferAttribute(pos, index.getX(t * 3)).applyMatrix4(toRoot);
         b.fromBufferAttribute(pos, index.getX(t * 3 + 1)).applyMatrix4(toRoot);
@@ -49,10 +53,13 @@ export class LipGap {
         centroids[t * 3] = (a.x + b.x + c.x) / 3;
         centroids[t * 3 + 1] = (a.y + b.y + c.y) / 3;
         centroids[t * 3 + 2] = (a.z + b.z + c.z) / 3;
+        let above = 0;
+        for (const v of [a, b, c]) if (v.y > lipLineAtX(landmarks, v.x).y) above++;
+        straddles[t] = above > 0 && above < 3 ? 1 : 0;
         n.subVectors(c, b).cross(a.sub(b)).normalize();
         normalZ[t] = n.z;
       }
-      this.cuts.push({ mesh, original: index.clone(), centroids, normalZ });
+      this.cuts.push({ mesh, original: index.clone(), centroids, normalZ, straddles });
     }
   }
 
@@ -90,7 +97,8 @@ export class LipGap {
           const lineZ = mid[2] + (corner[2] - mid[2]) * u2;
           const h = half * (1 - p.taper * (u / p.width) ** 2);
           const dz = z - lineZ;
-          drop = Math.abs(y - lineY) < h && dz < front && dz > -back;
+          const inBand = Math.abs(y - lineY) < h || (p.cutStraddling && cut.straddles[t] === 1);
+          drop = inBand && dz < front && dz > -back;
         }
         if (drop) this.removed++;
         else kept.push(src[t * 3], src[t * 3 + 1], src[t * 3 + 2]);

@@ -2,22 +2,10 @@
 import GUI from 'lil-gui';
 import Stats from 'three/addons/libs/stats.module.js';
 import { ExpressionEngine } from './ExpressionEngine';
+import { CORE_EXPRESSIONS } from './config';
 import type { LandmarkMarkers } from './LandmarkMarkers';
 import type { LandmarkFile } from './landmarks';
 
-/** The 10 expressions stage D will generate for the hunjang models (combined/ARKit names). */
-const CORE_EXPRESSIONS = [
-  'browDown',
-  'browInnerUp',
-  'browOuterUpLeft',
-  'eyeWide',
-  'eyeSquint',
-  'jawOpen',
-  'mouthFrown',
-  'mouthSmile',
-  'mouthPress',
-  'noseSneer',
-];
 
 export interface DebugPanel {
   gui: GUI;
@@ -86,7 +74,7 @@ export function createDebugPanel(engine: ExpressionEngine, extras: DebugExtras =
   // Combined names exercise the alias layer (e.g. browDown → browDown_L + browDown_R on facecap).
   const core = CORE_EXPRESSIONS.filter((n) => engine.resolve(n).length > 0);
   if (core.length) {
-    const coreFolder = gui.addFolder('1차 10개 (별칭 경유)');
+    const coreFolder = gui.addFolder(`1차 ${CORE_EXPRESSIONS.length}개 (별칭 경유)`);
     for (const name of core) {
       morphState[name] = 0;
       morphControllers.push(

@@ -39,6 +39,27 @@ export function addFacePartsFolder(gui: GUI, parts: FaceParts, modelKey: string,
   eyes.add(p.eyes, 'clearcoat', 0, 1, 0.01).name('클리어코트').onChange(eyesChanged);
   eyes.add(p.eyes, 'clearcoatRoughness', 0, 0.5, 0.01).name('코트 거칠기').onChange(eyesChanged);
 
+  const lids = folder.addFolder('눈꺼풀');
+  const lidsChanged = changed(() => parts.applyEyelids());
+  const motionChanged = changed(() => {});
+  lids.add(p.eyelids, 'visible').name('표시').onChange(lidsChanged);
+  lids.add(p.eyelids, 'gap', 0, 0.2, 0.005).name('눈알과의 간격').onChange(lidsChanged);
+  lids.add(p.eyelids, 'width', 0.8, 1.6, 0.01).name('가로 배율').onChange(lidsChanged);
+  lids.add(p.eyelids, 'upperRest', -0.5, 1.3, 0.01).name('위꺼풀 기본').onChange(motionChanged);
+  lids.add(p.eyelids, 'upperWide', 0.5, 1.6, 0.01).name('위꺼풀 eyeWide').onChange(motionChanged);
+  lids.add(p.eyelids, 'squintUpperDrop', 0, 0.8, 0.01).name('squint 때 위꺼풀 내림').onChange(motionChanged);
+  lids.add(p.eyelids, 'lowerRest', -1.6, 0, 0.01).name('아래꺼풀 기본').onChange(motionChanged);
+  lids.add(p.eyelids, 'lowerSquint', -1.2, 0.5, 0.01).name('아래꺼풀 eyeSquint').onChange(motionChanged);
+  lids.add(p.eyelids, 'blinkLowerRise', 0, 0.8, 0.01).name('blink 때 아래꺼풀 올림').onChange(motionChanged);
+  lids.add(p.eyelids, 'overlap', 0, 0.3, 0.01).name('감을 때 겹침').onChange(motionChanged);
+  lids.add(p.eyelids, 'followGaze', 0, 1, 0.01).name('시선 따라가기').onChange(motionChanged);
+  lids.addColor(p.eyelids, 'lashColor').name('속눈썹 선 색').onChange(lidsChanged);
+  lids.add(p.eyelids, 'lashWidth', 0, 20, 0.5).name('속눈썹 선 폭(°)').onChange(lidsChanged);
+  lids.add(p.eyelids, 'brightness', 0.6, 1.4, 0.01).name('피부색 밝기').onChange(lidsChanged);
+  lids.add(p.eyelids, 'roughness', 0, 1, 0.01).name('거칠기').onChange(lidsChanged);
+  const samples = { colors: parts.skinSamples.join(' ') };
+  lids.add(samples, 'colors').name('샘플 색 L위·L아래·R위·R아래').disable();
+
   const gazeFolder = folder.addFolder('시선');
   const lookManual = () => {
     if (!gaze.followPointer) parts.lookAt(gaze.x, gaze.y);

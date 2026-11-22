@@ -3,7 +3,17 @@
 //   ?debug                                    lil-gui panel + FPS meter (+ saved landmarks)
 //   ?landmarks                                landmark picking tool
 import * as THREE from 'three';
-import { DEFAULT_MODEL, ENGINE, FACE_PARTS, GAZE, LANDMARKS_VIEW, MODELS, type FacePartsParams } from './config';
+import {
+  DEFAULT_MODEL,
+  ENGINE,
+  FACE_PARTS,
+  GAZE,
+  LANDMARKS_VIEW,
+  MODELS,
+  MORPHS,
+  type FacePartsParams,
+  type MorphDefs,
+} from './config';
 import { createStage } from './stage';
 import { loadModel } from './loadModel';
 import { ExpressionEngine } from './ExpressionEngine';
@@ -14,6 +24,8 @@ import { savedLandmarks } from './landmarks';
 import { FaceParts } from './face/FaceParts';
 import { deepMerge, modelData } from './modelData';
 import { addFacePartsFolder, type GazeControl } from './debugFaceParts';
+import { MorphBuilder } from './morph/MorphBuilder';
+import { addMorphFolder } from './debugMorphs';
 
 const params = new URLSearchParams(location.search);
 const modelKey = params.get('model') && MODELS[params.get('model')!] ? params.get('model')! : DEFAULT_MODEL;
@@ -64,7 +76,24 @@ loadModel(model.url, stage.renderer)
     if (landmarkMode) stage.frame(loaded.root, LANDMARKS_VIEW.frameHeight, LANDMARKS_VIEW.frameDistance);
     else stage.frame(loaded.root, model.frameHeight, model.frameDistance);
 
-    engine = new ExpressionEngine(loaded.morphMeshes, {
+    const saved = savedLandmarks(modelKey);
+
+    // Stage C/D: generated morphs, eyeballs, eyelids, mouth interior and lip gap need landmarks.
+    // Skipped while picking landmarks, so the painted eyes and closed lips stay clickable.
+    let morphs: MorphBuilder | null = null;
+    if (saved && !landmarkMode) {
+      const partParams = deepMerge<FacePartsParams>(FACE_PARTS, model.faceParts, modelData('faceParts', modelKey));
+      const morphDefs = deepMerge<MorphDefs>(MORPHS, modelData('morphConfig', modelKey));
+      const builder = new MorphBuilder(loaded.meshes, loaded.root, saved, morphDefs, partParams.lipGap);
+      morphs = builder;
+      parts = new FaceParts(loaded.root, loaded.meshes, saved, partParams, {
+        jawMorph: (pos) => builder.jawForPositions(pos),
+      });
+    }
+
+    const morphMeshes = loaded.meshes.filter((m) => m.morphTargetInfluences?.length);
+    if (parts) morphMeshes.push(parts.mouth);
+    engine = new ExpressionEngine(morphMeshes, {
       omega: ENGINE.springOmega,
       dampingRatio: ENGINE.dampingRatio,
       outputMin: ENGINE.outputMin,
@@ -72,10 +101,11 @@ loadModel(model.url, stage.renderer)
       maxDt: ENGINE.maxDt,
       aliases: ENGINE.aliases,
     });
+    // The eyelid shells read these even if a model has no skin morph of that name.
+    for (const name of ['eyeBlink', 'eyeSquint', 'eyeWide']) engine.ensureChannel(name);
     engine.setBaseWeights(model.baseWeights);
 
     // Landmark markers live under the model root, so stored coordinates apply directly.
-    const saved = savedLandmarks(modelKey);
     let markers: LandmarkMarkers | null = null;
     if (landmarkMode || (debug && saved)) {
       const height = new THREE.Box3().setFromObject(loaded.root).getSize(new THREE.Vector3()).y;
@@ -90,15 +120,9 @@ loadModel(model.url, stage.renderer)
       }
     }
 
-    // Eyeballs, mouth interior and lip gap need landmarks. Skipped while picking landmarks,
-    // so the painted eyes and the closed lips stay clickable.
-    if (saved && !landmarkMode) {
-      const params = deepMerge<FacePartsParams>(FACE_PARTS, model.faceParts, modelData('faceParts', modelKey));
-      parts = new FaceParts(loaded.root, loaded.meshes, saved, params);
-    }
-
     if (debug) {
       panel = createDebugPanel(engine, { markers: landmarkMode ? null : markers, landmarks: saved });
+      if (morphs && parts) addMorphFolder(panel.gui, morphs, parts, engine, modelKey);
       if (parts) addFacePartsFolder(panel.gui, parts, modelKey, gaze);
     }
 
@@ -118,12 +142,13 @@ stage.renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = timer.getDelta();
   engine?.update(dt);
-  if (parts) {
+  if (parts && engine) {
     if (gaze.followPointer) {
       if (pointer.inside) parts.lookAtScreen(pointer.x, pointer.y, stage.camera, GAZE.pointerRange);
       else parts.lookAt(0, 0);
     }
-    parts.update(dt);
+    const e = engine!;
+    parts.update(dt, { blink: e.getValue('eyeBlink'), squint: e.getValue('eyeSquint'), wide: e.getValue('eyeWide') });
   }
   stage.render();
   panel?.tick();

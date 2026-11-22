@@ -24,7 +24,8 @@ export const MODELS: Record<string, ModelEntry> = {
     baseWeights: {},
     // Big painted cartoon eyes (half-width ≈ 0.26 eyeDist): a 0.22 ball can't cover them,
     // so use a larger ball that shows a ≈0.25 disc and bulges ≈0.13 out of the face.
-    faceParts: { eyes: { radius: 0.3, depth: 0.17, irisAngle: 30, pupilAngle: 14 } },
+    // The painted eye white reaches further sideways than the eyeball, so widen the lids.
+    faceParts: { eyes: { radius: 0.3, depth: 0.17, irisAngle: 30, pupilAngle: 14 }, eyelids: { width: 1.2 } },
   },
   'hunjang-real': {
     url: '/models/hunjang-real.glb',
@@ -164,11 +165,48 @@ export interface FacePartsParams {
     depthFront: number;
     depthBack: number;
     /**
+     * Also cut triangles that straddle the lip line inside the gap, so the upper and lower lip
+     * are fully separated there and jawOpen can move the lower lip without stretching skin.
+     */
+    cutStraddling: boolean;
+    /**
      * Only triangles whose normal z is above this are removed. Slightly negative so the lip
      * crease faces that curl into the mouth (facing a bit down/back) go too; the depth window
      * already keeps the back of the head out.
      */
     minFacing: number;
+  };
+  /**
+   * Eyelid shells (stage D): an upper and a lower partial sphere shell per eye, slightly larger
+   * than the eyeball, rotated about the eye's horizontal axis to cover it. Edge positions are
+   * fractions of the visible eyeball's half-angle (0 = centre of the eye, 1 = top/bottom of the
+   * visible disc, negative = below centre), so the same numbers fit both models.
+   */
+  eyelids: {
+    visible: boolean;
+    /** Shell radius = eyeball radius × (1 + gap). */
+    gap: number;
+    /** Horizontal stretch of the shells, to also cover painted eye white beside the eyeball. */
+    width: number;
+    /** Upper lid edge at rest (a little below the top = stern look), at eyeWide, at full squint. */
+    upperRest: number;
+    upperWide: number;
+    squintUpperDrop: number;
+    /** Lower lid edge at rest (hidden under the skin) and at full eyeSquint. */
+    lowerRest: number;
+    lowerSquint: number;
+    /** On eyeBlink the upper lid comes down to the lower lid; the lower lid also rises this much. */
+    blinkLowerRise: number;
+    /** How far the closed upper lid overlaps the lower one. */
+    overlap: number;
+    /** Lids follow vertical gaze by this fraction of the eyeball's pitch. */
+    followGaze: number;
+    /** Dark lash line along each edge (angular width in degrees). */
+    lashColor: string;
+    lashWidth: number;
+    /** Multiplier on the skin colour sampled from the texture around the eye. */
+    brightness: number;
+    roughness: number;
   };
 }
 
@@ -207,7 +245,25 @@ export const FACE_PARTS: FacePartsParams = {
     taper: 0.5,
     depthFront: 0.06,
     depthBack: 0.2,
+    cutStraddling: true,
     minFacing: -0.5,
+  },
+  eyelids: {
+    visible: true,
+    gap: 0.05,
+    width: 1,
+    upperRest: 0.5,
+    upperWide: 1.15,
+    squintUpperDrop: 0.15,
+    lowerRest: -1.15,
+    lowerSquint: -0.35,
+    blinkLowerRise: 0.7,
+    overlap: 0.12,
+    followGaze: 0.35,
+    lashColor: '#3a2418',
+    lashWidth: 6,
+    brightness: 1,
+    roughness: 0.6,
   },
 };
 
@@ -222,3 +278,189 @@ export const GAZE = {
 export const HEAD = {
   pivotOffset: [0, 0, 0] as [number, number, number],
 };
+
+// ---------------------------------------------------------------------------------------------
+// Stage D: generated morph targets.
+// Every length is in eyeDist units; vectors use model-root axes (+x = character's left, +y up,
+// +z toward the viewer). Per-target `strength`/`radius` are the knobs exposed in ?debug and
+// saved to src/data/morphConfig.<model>.json; the handle lists stay here.
+// ---------------------------------------------------------------------------------------------
+
+export type V3 = [number, number, number];
+
+export interface MorphHandle {
+  /** Landmark the handle is centred on, or several (their average). */
+  at: string | string[];
+  offset?: V3;
+  /** Falloff radius: weight = 1 − smoothstep(distance / radius). */
+  radius: number;
+  /** Per-axis stretch of the falloff, e.g. [1.4, 0.8, 1] = wider than tall. */
+  shape?: V3;
+  /** Displacement at full weight. */
+  move: V3;
+  /** Also add the mirror image (landmark _L↔_R, x of offset and move negated). */
+  mirror?: boolean;
+  /** Only act on the upper or lower lip side of the lip line (see MORPHS.lipBand). */
+  lip?: 'upper' | 'lower';
+}
+
+export interface MorphTargetDef {
+  strength: number;
+  radius: number;
+  handles: MorphHandle[];
+}
+
+export interface JawDef {
+  /** Multiplies the angle. */
+  strength: number;
+  /** Multiplies the soft bands (outside the lip gap, neck falloff). */
+  radius: number;
+  /** Jaw rotation at jawOpen = 1, degrees, about the jawPivot_R→jawPivot_L axis. */
+  angle: number;
+  pivotOffset: V3;
+  /**
+   * The neck starts below a plane through the pivot axis and a point this far below the chin;
+   * under it the weight fades over neckFalloff. The margin keeps the underside of the chin
+   * (where the beard is rooted) moving fully, so the beard does not tear away from it.
+   */
+  chinMargin: number;
+  neckFalloff: number;
+  /** Behind the pivot (ears, back of the head), weight fades over this. */
+  backFalloff: number;
+  /** Beard: below the chin it blends from rotating to following the chin's movement. */
+  beardFollow: number;
+  beardBlend: number;
+}
+
+export interface MorphDefs {
+  targets: Record<string, MorphTargetDef>;
+  jaw: JawDef;
+  /**
+   * Upper/lower lip split used by jawOpen and lip-gated handles. Inside the lip gap the split is
+   * sharp (the lips are cut apart there); outside the mouth corners it blends over outerUp/Down.
+   */
+  lipBand: { gapUp: number; gapDown: number; outerUp: number; outerDown: number };
+  /** Robe/shoulders: below collarFront (fading in over `collarMargin` above it) and not beard. */
+  fixed: { collarMargin: number };
+  /** Beard detection: a vertex below the chin is beard if another front-facing surface lies
+   *  behind it within `layerDepth`, and it connects to the chin through such vertices. */
+  beard: { layerDepth: number; seedRadius: number };
+}
+
+export const MORPHS: MorphDefs = {
+  targets: {
+    browDown: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'browInner_L', mirror: true, radius: 0.4, shape: [1.3, 0.8, 1], move: [-0.05, -0.1, 0.02] },
+        { at: 'browOuter_L', mirror: true, radius: 0.4, shape: [1.3, 0.8, 1], move: [0, -0.06, 0] },
+        { at: ['browInner_L', 'browInner_R'], offset: [0, 0.06, 0], radius: 0.3, move: [0, -0.04, 0.03] },
+      ],
+    },
+    browInnerUp: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'browInner_L', mirror: true, radius: 0.4, shape: [1.3, 0.8, 1], move: [0, 0.12, 0] },
+        { at: ['browInner_L', 'browInner_R'], offset: [0, 0.25, 0], radius: 0.5, move: [0, 0.04, 0] },
+      ],
+    },
+    browOuterUpLeft: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'browOuter_L', radius: 0.45, shape: [1.2, 0.8, 1], move: [0, 0.13, 0] },
+        { at: 'browInner_L', radius: 0.35, move: [0, 0.03, 0] },
+      ],
+    },
+    // Eye targets: the eyelid shells do the main work; these are the skin helpers around them.
+    eyeWide: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'browInner_L', mirror: true, radius: 0.4, shape: [1.3, 0.8, 1], move: [0, 0.05, 0] },
+        { at: 'browOuter_L', mirror: true, radius: 0.4, shape: [1.3, 0.8, 1], move: [0, 0.05, 0] },
+      ],
+    },
+    eyeSquint: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'eye_L', mirror: true, offset: [0, -0.35, 0], radius: 0.35, shape: [1.4, 0.8, 1], move: [0, 0.06, 0.02] },
+        { at: 'browOuter_L', mirror: true, radius: 0.35, move: [0, -0.03, 0] },
+      ],
+    },
+    eyeBlink: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'eye_L', mirror: true, offset: [0, -0.35, 0], radius: 0.3, shape: [1.4, 0.8, 1], move: [0, 0.025, 0] },
+        { at: 'browInner_L', mirror: true, radius: 0.35, move: [0, -0.02, 0] },
+      ],
+    },
+    mouthFrown: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'mouthCorner_L', mirror: true, radius: 0.4, move: [0.01, -0.1, -0.01] },
+        { at: 'chin', radius: 0.45, shape: [1.5, 1, 1], move: [0, 0.03, 0.02] },
+      ],
+    },
+    mouthSmile: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'mouthCorner_L', mirror: true, radius: 0.45, move: [0.05, 0.09, -0.04] },
+        { at: 'cheek_L', mirror: true, radius: 0.45, move: [0.01, 0.05, 0.03] },
+      ],
+    },
+    mouthPress: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'upperLip', lip: 'upper', radius: 0.35, shape: [2.2, 0.8, 1], move: [0, -0.035, -0.01] },
+        { at: 'lowerLip', lip: 'lower', radius: 0.35, shape: [2.2, 0.8, 1], move: [0, 0.04, -0.01] },
+        { at: 'mouthCorner_L', mirror: true, radius: 0.25, move: [-0.02, 0, 0] },
+      ],
+    },
+    noseSneer: {
+      strength: 1,
+      radius: 1,
+      handles: [
+        { at: 'noseTip', mirror: true, offset: [0.2, -0.05, -0.15], radius: 0.25, move: [0, 0.06, 0] },
+        { at: 'upperLip', lip: 'upper', radius: 0.3, shape: [1.6, 1, 1], move: [0, 0.03, 0] },
+        { at: 'browInner_L', mirror: true, radius: 0.3, move: [0.02, -0.03, 0] },
+      ],
+    },
+  },
+  jaw: {
+    strength: 1,
+    radius: 1,
+    angle: 18,
+    pivotOffset: [0, 0, 0],
+    chinMargin: 0.5,
+    neckFalloff: 0.3,
+    backFalloff: 0.4,
+    beardFollow: 0.85,
+    beardBlend: 0.6,
+  },
+  lipBand: { gapUp: 0.005, gapDown: 0.005, outerUp: 0.1, outerDown: 0.35 },
+  fixed: { collarMargin: 0.15 },
+  beard: { layerDepth: 2.5, seedRadius: 0.8 },
+};
+
+/** The core expression list (debug sliders, stage E mapping). jawOpen is built by rotation. */
+export const CORE_EXPRESSIONS = [
+  'browDown',
+  'browInnerUp',
+  'browOuterUpLeft',
+  'eyeWide',
+  'eyeSquint',
+  'eyeBlink',
+  'jawOpen',
+  'mouthFrown',
+  'mouthSmile',
+  'mouthPress',
+  'noseSneer',
+];

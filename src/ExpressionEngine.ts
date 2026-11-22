@@ -139,6 +139,28 @@ export class ExpressionEngine {
     }
   }
 
+  /**
+   * Makes sure a channel with this exact name exists. If the model has no morph of that name,
+   * a "virtual" channel without morph slots is created: it still gets targets and a smoothed
+   * value, which code outside the meshes (e.g. eyelid shells) reads with getValue().
+   */
+  ensureChannel(name: string): void {
+    if (this.byName.has(name)) return;
+    const ch: Channel = { name, slots: [], target: 0, base: 0, value: 0, velocity: 0 };
+    this.byName.set(name, ch);
+    this.channels.push(ch);
+    const { base, side } = splitSide(name);
+    const entry = this.byBase.get(base) ?? {};
+    entry[side ?? 'both'] = ch;
+    this.byBase.set(base, entry);
+    this.resolveCache.clear();
+  }
+
+  /** Current spring-smoothed value (0 if the name resolves to nothing). */
+  getValue(name: string): number {
+    return this.resolve(name)[0]?.value ?? 0;
+  }
+
   /** ARKit-style names this model can respond to (for UIs). */
   get arkitNames(): string[] {
     return this.channels.map((c) => toArkitName(c.name));
